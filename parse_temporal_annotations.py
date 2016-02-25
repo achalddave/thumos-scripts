@@ -26,20 +26,23 @@ parser = argparse.ArgumentParser(
     description=__doc__,
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('input_annotation_dir')
-parser.add_argument('video_frames_info',
-                    help='CSV of format <video_name>,<fps>[,<num_frames_in_video>]?')
+parser.add_argument(
+    'video_frames_info',
+    help='CSV of format <video_name>,<fps>[,<num_frames_in_video>]?')
 parser.add_argument('output_annotation_json')
 
 args = parser.parse_args()
+
 
 def parse_frame_info(video_frames_info_path):
     video_fps = dict()
     with open(video_frames_info_path) as f:
         reader = csv.reader(f)
-        next(reader, None) # Skip headers
+        next(reader, None)  # Skip headers
         for row in reader:
             video_fps[row[0]] = float(row[1])
     return video_fps
+
 
 def parse_annotation_file(annotation_path, video_fps):
     annotations = []
