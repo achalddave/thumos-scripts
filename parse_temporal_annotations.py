@@ -45,9 +45,15 @@ def parse_annotation_file(annotation_path, video_fps):
     annotations = []
     with open(annotation_path) as f:
         for line in f:
-            # Format: "<video_name>  <start_time> <end_time>" Note that there
-            # are *two spaces* between the first two fields (unfortunately).
-            [filename, _, start, end] = line.strip().split(' ')
+            # Format: "<video_name> <start_time> <end_time>" or
+            # "<video_name>  <start_time> <end_time>".
+            # The THUMOS temporal labels have *two spaces* between the first two
+            # fields (unfortunately), while the MultiTHUMOS labels have one
+            # space.
+            details = line.strip().split(' ')
+            if details[1] == '':  # There were two spaces after the first field.
+                details.pop(1)
+            filename, start, end = details
             start, end = float(start), float(end)
             current_fps = video_fps[filename]
             start_frame = floor(start * current_fps)
