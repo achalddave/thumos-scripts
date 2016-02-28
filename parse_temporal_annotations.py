@@ -22,17 +22,6 @@ import os
 from math import ceil, floor
 from os import path
 
-parser = argparse.ArgumentParser(
-    description=__doc__,
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('input_annotation_dir')
-parser.add_argument(
-    'video_frames_info',
-    help='CSV of format <video_name>,<fps>[,<num_frames_in_video>]?')
-parser.add_argument('output_annotation_json')
-
-args = parser.parse_args()
-
 
 def parse_frame_info(video_frames_info_path):
     video_fps = dict()
@@ -96,4 +85,15 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('input_annotation_dir')
+    parser.add_argument(
+        'video_frames_info',
+        help='CSV of format <video_name>,<fps>[,<num_frames_in_video>]?')
+    parser.add_argument('output_annotation_json')
+
+    args = parser.parse_args()
+
     main()
