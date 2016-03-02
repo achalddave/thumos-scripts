@@ -67,15 +67,12 @@ def main():
     video_fps = parse_frame_info(args.video_frames_info)
     annotations = []
     for annotation_path in annotation_paths:
-        if annotation_path.endswith('_val.txt'):
-            # annotation_path is of the form /path/to/[category]_val.txt.
-            category = path.basename(annotation_path)[:-len("_val.txt")]
-        elif annotation_path.endswith('.txt'):
-            # annotation_path is of the form /path/to/[category].txt
-            category = path.basename(annotation_path)[:-len(".txt")]
-        else:
-            assert False, ("Unrecognized form for annotation path %s",
-                           annotation_path)
+        category = path.splitext(path.basename(annotation_path))[0]
+        if category.endswith('_val'):
+            category = category[:-len('_val')]
+        elif category.endswith('_test'):
+            category = category[:-len('_test')]
+        print category
         annotation_details = parse_annotation_file(annotation_path, video_fps)
         for annotation in annotation_details:
             annotation['category'] = category
