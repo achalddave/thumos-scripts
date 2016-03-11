@@ -24,7 +24,7 @@ if __name__ == '__main__':
     if not path.isdir(test_dir): os.mkdir(test_dir)
 
     for annotation_file in annotation_files:
-        filename = path.basename(annotation_file)
+        filename = path.splitext(path.basename(annotation_file))[0]
         validation_lines = []
         test_lines = []
         with open(annotation_file) as f:
@@ -36,9 +36,12 @@ if __name__ == '__main__':
                     test_lines.append(line)
                 else:
                     raise ValueError('Unknown file split %s' % video_filename)
-        validation_output_file = path.join(val_dir, filename)
-        test_output_file = path.join(test_dir, filename)
+        validation_output_file = path.join(val_dir, filename + '_val.txt')
+        test_output_file = path.join(test_dir, filename + '_test.txt')
         with open(validation_output_file, 'wb') as f:
             f.writelines(validation_lines)
         with open(test_output_file, 'wb') as f:
             f.writelines(test_lines)
+    # Create empty ambigious files which the THUMOS eval script looks for.
+    open(path.join(test_dir, 'Ambiguous_test.txt'), 'w').close()
+    open(path.join(val_dir, 'Ambiguous_val.txt'), 'w').close()
