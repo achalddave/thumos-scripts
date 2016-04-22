@@ -16,17 +16,16 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         'temporal_annotations_json',
-        help=('Path to temporal annotations JSON file, as output by'
-              'parse_temporal_annotations.py'))
+        help="""Path to temporal annotations JSON file, as output by
+                parse_temporal_annotations.py.""")
     parser.add_argument(
         'video_frames_info',
         help='CSV of format <video_name>,<fps>,<num_frames_in_video>')
     parser.add_argument(
         'class_mapping',
-        help=('File containing lines of the form '
-              '"<class_index> <class_name>". The order of lines in this file '
-              'will correspond to the order of the labels in the output label '
-              'matrix.'))
+        help="""File containing lines of the form "<class_index> <class_name>".
+                The order of lines in this file will correspond to the order of
+                the labels in the output label matrix.""")
     parser.add_argument('output_labels_hdf5', help='Output HDF5 path')
 
     args = parser.parse_args()
