@@ -4,6 +4,8 @@ Takes as input an HDF5 mapping '<video_name>' to a binary matrix of
 (num_frames, num_labels) shape, and constructs an LMDB that has a unique key
 for each frame. The labels are numpy arrays stored as byte strings, and can be
 loaded calling numpy.fromstring on the values.
+
+NOTE: The frame numbers are 1-indexed.
 """
 
 import argparse
@@ -36,7 +38,7 @@ def main():
         for video_name, file_labels in tqdm(labels.items()):
             file_labels = np.asarray(file_labels)
             for frame_number, frame_labels in enumerate(file_labels):
-                key = '{}-{}'.format(video_name, frame_number)
+                key = '{}-{}'.format(video_name, frame_number + 1)
                 lmdb_transaction.put(key, frame_labels.tobytes())
 
 
