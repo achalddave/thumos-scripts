@@ -40,8 +40,8 @@ def main():
     num_frames = {filename: fps_num_frames[1]
                   for filename, fps_num_frames in num_frames.items()}
 
-    # Maps filenames to binary matrices of (num_frames, num_labels)
-    frame_labels = {filename: np.empty((num_frames[filename], num_labels))
+    # Maps filenames to binary matrices of shape (num_frames, num_labels).
+    frame_labels = {filename: np.zeros((num_frames[filename], num_labels))
                     for filename in annotations.keys()}
 
     for i, (label_id, label_str) in enumerate(label_id_to_str.items()):
