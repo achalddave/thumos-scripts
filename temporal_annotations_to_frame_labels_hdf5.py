@@ -74,12 +74,12 @@ def main():
     if args.sample_frame_rate is not None:
         # Compute number of frames under the sampled frame rate.
         num_frames = {}
-        for filename, (file_num_frames, file_fps) in fps_num_frames.items():
+        for filename, (file_fps, file_num_frames) in fps_num_frames.items():
             num_frames[filename] = resampled_frame_offset(
                 file_num_frames, file_fps, args.sample_frame_rate)
     else:
         num_frames = {filename: file_num_frames
-                      for filename, (file_num_frames, _) in
+                      for filename, (_, file_num_frames) in
                       fps_num_frames.items()}
 
     # Maps filenames to binary matrices of shape (num_frames, num_labels).
