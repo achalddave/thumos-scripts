@@ -33,7 +33,7 @@ from video_util import video_frames_pb2
 
 
 def collect_frame_labels(file_annotations, frame_index, frames_per_second):
-    query_second = frame_index * frames_per_second
+    query_second = frame_index / frames_per_second
     return sorted(list(set(annotation.category
                            for annotation in file_annotations
                            if annotation.start_seconds < query_second <
