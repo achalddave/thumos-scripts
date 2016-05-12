@@ -28,26 +28,65 @@ from PIL import Image
 from tqdm import tqdm
 
 from util.annotation import load_annotations_json
-from video_util import frames_to_lmdb
+from util.parsing import load_class_mapping
+from video_util.frames_to_video_frames_proto_lmdb import (
+    image_array_to_proto, load_images_async, parse_frame_path)
 from video_util import video_frames_pb2
 
 
 def collect_frame_labels(file_annotations, frame_index, frames_per_second):
-    query_second = frame_index / frames_per_second
+    """Collect list of labels that apply to a particular frame in a file.
+
+    Args:
+        file_annotations (list of Annotation): Annotations for a particular
+            file.
+        frame_index (int): Query frame index.
+        frames_per_second (int): Used to convert frame index to time in
+            seconds.
+
+    Returns:
+        labels (list): List of label strings that apply to this frame.
+    """
+    query_second = float(frame_index) / frames_per_second
     return sorted(list(set(annotation.category
                            for annotation in file_annotations
                            if annotation.start_seconds < query_second <
                            annotation.end_seconds)))
 
 
-def create_labeled_frame(video_name, frame_index, image_proto, labels):
+def create_labeled_frame(video_name, frame_index, image_proto, labels,
+                         label_ids):
     video_frame = video_frames_pb2.LabeledVideoFrame()
     video_frame.frame.image.CopyFrom(image_proto)
     video_frame.frame.video_name = video_name
     video_frame.frame.frame_index = frame_index
     for label in labels:
-        video_frame.label.append(label)
+        label_proto = video_frame.label.add()
+        label_proto.name = label
+        label_proto.id = label_ids[label]
     return video_frame
+
+
+def load_label_ids(class_mapping_path):
+    """
+    Args:
+        class_mapping_path (str): Path to a text file containing ordered list
+            of labels.  Each line should be of the form "<arbitrary_number>
+            <label>". Note: The <arbitrary_number> is ignored (this may
+            correspond to, e.g. the label's ID in THUMOS); the label id is
+            the line number on which the label appears.
+
+    Returns:
+        label_ids (dict): Maps label name to int id. The id is equal to the
+            (0-indexed) line number on which the label appeared in the class
+            mapping file. Note that these are *not* the ids from THUMOS
+    """
+    label_ids = {}
+    with open(class_mapping_path) as f:
+        for i, line in enumerate(f):
+            _, label = line.strip().split(' ')
+            label_ids[label] = i
+    return label_ids
 
 
 def load_image(image_path, resize_height=None, resize_width=None):
@@ -90,17 +129,28 @@ def load_image_batch(pool, frame_paths, resize_height, resize_width):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=__doc__,
+        description=__doc__.split('\n')[0],
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('frames_root')
-    parser.add_argument('annotations_json')
-    parser.add_argument('output_lmdb')
+    parser.add_argument('--frames_root', required=True)
+    parser.add_argument('--annotations_json', required=True)
+    parser.add_argument('--class_mapping',
+                        required=True,
+                        help="""
+                        File containing lines of the form "<class_index>
+                        <class_name>".  The order of lines in this file will
+                        correspond to the order of the labels in the output
+                        label matrix. If a video contains a class not in this
+                        file, it will be ignored.""")
+    parser.add_argument('--output_lmdb', required=True)
+
+    # Optional arguments.
     parser.add_argument('--resize_width', default=None, nargs='?', type=int)
     parser.add_argument('--resize_height', default=None, nargs='?', type=int)
     parser.add_argument('--frames_per_second',
                         default=10,
                         type=float,
                         help='FPS that frames were extracted at.')
+    parser.add_argument('--num_processes', default=16, nargs='?', type=int)
 
     args = parser.parse_args()
 
@@ -116,49 +166,49 @@ def main():
     # Load pairs of the form (frame path, (video name, frame index)), and
     # create batches..
     frame_path_info_pairs = [
-        (frame_path, frames_to_lmdb.parse_frame_path(frame_path))
+        (frame_path, parse_frame_path(frame_path))
         for frame_path in glob.iglob('{}/*/*.png'.format(args.frames_root))
     ]
-
-    frame_path_info_pairs_batched = (
-        frame_path_info_pairs[i:i + batch_size]
-        for i in range(0, len(frame_path_info_pairs), batch_size))
     print 'Loaded frame paths.'
 
     annotations = load_annotations_json(args.annotations_json)
 
-    progress = tqdm(total=len(frame_path_info_pairs))
-    pool = mp.Pool(8)
-    for frame_path_info_pairs_batch in frame_path_info_pairs_batched:
-        batch_images = load_image_batch(
-            pool, [x[0] for x in frame_path_info_pairs_batch],
-            args.resize_height, args.resize_height)
+    num_paths = len(frame_path_info_pairs)
+    progress = tqdm(total=num_paths)
 
-        # Convert image arrays to image protocol buffers.
-        # We can't return protos from multiprocessing due to pickling issues.
-        # https://groups.google.com/forum/#!topic/protobuf/VqWJ3BmQXVg
-        for i in range(len(batch_images)):
-            image_array = batch_images[i]
-            image = video_frames_pb2.Image()
-            image.channels, image.height, image.width = image_array.shape
-            image.data = image_array.tostring()
-            batch_images[i] = image
+    mp_manager = mp.Manager()
+    queue = mp_manager.Queue(maxsize=batch_size)
+    frame_paths = [x[0] for x in frame_path_info_pairs]
 
-        video_frames_batch = []
+    # Spawn threads to load images.
+    load_images_async(queue, args.num_processes, frame_paths,
+                      args.resize_height, args.resize_width)
+    label_ids = load_label_ids(args.class_mapping)
+
+    path_index = 0
+    loaded_images = False
+    while True:
+        if loaded_images:
+            break
         with lmdb.open(args.output_lmdb, map_size=map_size).begin(
                 write=True) as lmdb_transaction:
-            for i in range(len(frame_path_info_pairs_batch)):
-                video_name, frame_index = frame_path_info_pairs_batch[i][1]
+            # Convert image arrays to image protocol buffers.
+            for _ in range(batch_size):
+                path_index += 1
+                if path_index >= num_paths:
+                    loaded_images = True
+                    break
+                image = image_array_to_proto(queue.get())
+                video_name, frame_index = frame_path_info_pairs[path_index][1]
                 labels = collect_frame_labels(annotations[video_name],
                                               frame_index - 1,
                                               args.frames_per_second)
                 video_frame_proto = create_labeled_frame(
-                    video_name, frame_index, batch_images[i], labels)
+                    video_name, frame_index, image, labels, label_ids)
                 frame_key = '{}-{}'.format(video_name, frame_index)
                 lmdb_transaction.put(frame_key,
                                      video_frame_proto.SerializeToString())
                 progress.update(1)
-        del batch_images
 
 
 if __name__ == "__main__":
