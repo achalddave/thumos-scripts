@@ -99,6 +99,7 @@ def main():
     parser.add_argument('--resize_height', default=None, nargs='?', type=int)
     parser.add_argument('--frames_per_second',
                         default=10,
+                        type=float,
                         help='FPS that frames were extracted at.')
 
     args = parser.parse_args()
