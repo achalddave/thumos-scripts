@@ -11,6 +11,7 @@ For each category, we pick X% (rounded up) of the videos and place them in the
 import argparse
 import logging
 import random
+from collections import defaultdict, OrderedDict
 
 from util.annotation import (filter_annotations_by_category,
                              load_annotations_json)
@@ -18,6 +19,47 @@ from util.annotation import (filter_annotations_by_category,
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s.%(msecs).03d: %(message)s',
                     datefmt='%H:%M:%S')
+
+
+def split_constraint_fix(annotations_by_label, valtrain_videos, valval_videos):
+    """Return a swap between splits to satisfy label constraints.
+
+    If each label doesn't have one video in valtrain and valval, return a
+    swapping of videos that will satisfy one constraint.
+
+    Returns:
+        swap_pair (tuple or None): Contains one video from valtrain and one
+            from valval. If None, then all constraints are satisfied.
+    """
+    valtrain_videos = set(valtrain_videos)
+    valval_videos = set(valval_videos)
+    swap_pair = None
+    # We attempt to satisfy constraints for the labels with more annotations
+    # first. Satisfying constraints for labels with fewer annotations should
+    # be less likely to violate an earlier constraint.
+    label_annotations_length_sorted = sorted(annotations_by_label.items(),
+                                             key=lambda (_, v): len(v),
+                                             reverse=True)
+    for label, annotations in label_annotations_length_sorted:
+        filenames = set(x.filename for x in annotations)
+        if len(filenames) < 2:
+            raise Exception('Label %s has only one file!' % label)
+        if not filenames.intersection(valtrain_videos):
+            # Swap one file for this label from the validation set with a
+            # random file from the train set.
+            swap_pair = (random.choice(tuple(valtrain_videos)),
+                         random.choice(tuple(filenames)))
+            break
+        elif not filenames.intersection(valval_videos):
+            # Swap one file for this label from the train set with a
+            # random file from the validation set.
+            swap_pair = (random.choice(tuple(filenames)),
+                         random.choice(tuple(valval_videos)))
+            break
+    if swap_pair is not None:
+        logging.info('Swapping (%s, %s) for label %s', swap_pair[0],
+                     swap_pair[1], label)
+    return swap_pair
 
 
 def main():
@@ -39,28 +81,42 @@ def main():
     args = parser.parse_args()
     random.seed(args.seed)
 
-    val_annotations = load_annotations_json(args.val_annotations_json)
-    categories = set()
+    val_annotations_unordered = load_annotations_json(
+        args.val_annotations_json)
+    filenames = sorted(val_annotations_unordered.keys())
+    # Create a fixed ordering for val_annotations so all runs have the same
+    # ordering when looping over the dictionary.
+    val_annotations = OrderedDict()
+    val_annotations = {filename: val_annotations_unordered[filename]
+                       for filename in filenames}
+
+    num_valval = int(round(args.val_portion * len(filenames)))
+    num_valtrain = len(filenames) - num_valval
+    random.shuffle(filenames)
+    valval_videos = set(filenames[:num_valval])
+    valtrain_videos = set(filenames[num_valval:])
+
+    annotations_by_label = OrderedDict()
     for file_annotations in val_annotations.values():
-        categories.update(x.category for x in file_annotations)
+        for annotation in file_annotations:
+            if annotation.category not in annotations_by_label:
+                annotations_by_label[annotation.category] = []
+            annotations_by_label[annotation.category].append(annotation)
+    for label, annotations in annotations_by_label.items():
+        logging.info('%s: %s files', label,
+                     len(set([x.filename for x in annotations])))
 
-    valval_videos = set()
-    # Sort to ensure deterministic order conditioned on seed.
-    for category in sorted(list(categories)):
-        category_annotations = filter_annotations_by_category(val_annotations,
-                                                              category)
-        video_names = category_annotations.keys()
-        in_valval = set(video_names).intersection(valval_videos)
-        num_valval = max(int(round(args.val_portion * len(video_names))), 1)
-        if len(in_valval) >= num_valval:
-            continue
+    while True:
+        swap = split_constraint_fix(annotations_by_label, valtrain_videos,
+                                    valval_videos)
+        if swap is None:
+            break
+        valtrain_videos.remove(swap[0])
+        valtrain_videos.add(swap[1])
 
-        # Sort to ensure deterministic order conditioned on seed.
-        not_in_valval = sorted(list(set(video_names) - valval_videos))
-        random.shuffle(not_in_valval)
-        valval_videos.update(not_in_valval[:num_valval - len(in_valval)])
+        valval_videos.remove(swap[1])
+        valval_videos.add(swap[0])
 
-    valtrain_videos = set(val_annotations.keys()) - valval_videos
     logging.info('# train videos: %s', len(valtrain_videos))
     logging.info('# val videos: %s', len(valval_videos))
     with open(args.output_trainval_names, 'wb') as train_f, \
