@@ -75,7 +75,7 @@ def main():
         '--val_portion',
         default=0.2,
         type=float,
-        help='Minimum proportion of videos for each category in valval set.')
+        help='Portion of videos to place in the val set.')
     parser.add_argument('--seed', default=0, type=int)
 
     args = parser.parse_args()
