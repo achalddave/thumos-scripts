@@ -100,7 +100,7 @@ def load_image(image_path, resize_height=None, resize_width=None):
             image is not resized.
 
     Returns:
-        image_datum (caffe Datum): Contains the image in BGR order after
+        image_datum (numpy array): Contains the image in BGR order after
             resizing.
     """
     image = Image.open(image_path)
