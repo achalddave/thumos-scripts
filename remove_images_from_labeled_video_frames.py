@@ -4,16 +4,11 @@ Iterating through a LabeledVideoFrames LMDB is slow due to the image data
 (bytes).  This script removes the image bytes from the LabeledVideoFrames."""
 
 import argparse
-# import logging
 
 import lmdb
 from tqdm import tqdm
 
 from video_util import video_frames_pb2
-
-# logging.getLogger().setLevel(logging.INFO)
-# logging.basicConfig(format='%(asctime)s.%(msecs).03d: %(message)s',
-#                     datefmt='%H:%M:%S')
 
 
 def write_imageless_frames_batch(read_lmdb, write_lmdb, batch_size, map_size,
