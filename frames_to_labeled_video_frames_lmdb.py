@@ -163,29 +163,27 @@ def main():
 
     batch_size = 10000
 
-    # Load pairs of the form (frame path, (video name, frame index)), and
-    # create batches..
-    frame_path_info_pairs = [
-        (frame_path, parse_frame_path(frame_path))
+    # Load mapping from frame path to (video name, frame index)).
+    frame_path_info = {
+        frame_path: parse_frame_path(frame_path)
         for frame_path in glob.iglob('{}/*/*.png'.format(args.frames_root))
-    ]
+    }
+
     print 'Loaded frame paths.'
 
     annotations = load_annotations_json(args.annotations_json)
 
-    num_paths = len(frame_path_info_pairs)
+    num_paths = len(frame_path_info)
     progress = tqdm(total=num_paths)
 
     mp_manager = mp.Manager()
     queue = mp_manager.Queue(maxsize=batch_size)
-    frame_paths = [x[0] for x in frame_path_info_pairs]
-
     # Spawn threads to load images.
-    load_images_async(queue, args.num_processes, frame_paths,
+    load_images_async(queue, args.num_processes, frame_path_info.keys(),
                       args.resize_height, args.resize_width)
     label_ids = load_label_ids(args.class_mapping)
 
-    path_index = 0
+    num_stored = 0
     loaded_images = False
     while True:
         if loaded_images:
@@ -194,12 +192,16 @@ def main():
                 write=True) as lmdb_transaction:
             # Convert image arrays to image protocol buffers.
             for _ in range(batch_size):
-                path_index += 1
-                if path_index >= num_paths:
+                num_stored += 1
+                if num_stored >= num_paths:
                     loaded_images = True
                     break
-                image = image_array_to_proto(queue.get())
-                video_name, frame_index = frame_path_info_pairs[path_index][1]
+
+                # Convert image arrays to image protocol buffers.
+                frame_path, image_array = queue.get()
+                image = image_array_to_proto(image_array)
+
+                video_name, frame_index = frame_path_info[frame_path]
                 labels = collect_frame_labels(annotations[video_name],
                                               frame_index - 1,
                                               args.frames_per_second)
