@@ -12,7 +12,7 @@ from video_util import video_frames_pb2
 
 
 def write_imageless_frames_batch(read_lmdb, write_lmdb, batch_size, map_size,
-                                 last_key):
+                                 last_key, progress):
     """Read one batch of LabeledVideoFrames, remove images, write to output.
 
     Args:
@@ -36,12 +36,13 @@ def write_imageless_frames_batch(read_lmdb, write_lmdb, batch_size, map_size,
             read_cursor.next()
         cursor_iterator = read_cursor.iternext()
         try:
-            for i in tqdm(range(batch_size), leave=False):
+            for i in range(batch_size):
                 key, value = next(cursor_iterator)
                 video_frame = video_frames_pb2.LabeledVideoFrame()
                 video_frame.ParseFromString(value)
                 video_frame.frame.image.data = ''
                 output_transaction.put(key, video_frame.SerializeToString())
+                progress.update(1)
         except StopIteration:
             return None
     return key
@@ -58,17 +59,19 @@ def main():
                         values without image bytes.""")
     args = parser.parse_args()
 
+    with lmdb.open(args.input_lmdb, readonly=True) as env:
+        num_entries = env.stat()['entries']
     batch_size = 5000
     map_size = int(500e9)
     last_key = None
-    progress = tqdm()
+    progress = tqdm(total=num_entries)
     while True:
         # logging.info('On batch %s', batch_index)
-        last_key = write_imageless_frames_batch(
-            args.input_lmdb, args.output_lmdb, batch_size, map_size, last_key)
+        last_key = write_imageless_frames_batch(args.input_lmdb,
+                                                args.output_lmdb, batch_size,
+                                                map_size, last_key, progress)
         if last_key is None:
             break
-        progress.update(1)
 
 
 if __name__ == "__main__":
