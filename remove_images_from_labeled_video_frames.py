@@ -27,10 +27,10 @@ def write_imageless_frames_batch(read_lmdb, write_lmdb, batch_size, map_size,
         last_key (str): The last key from this batch. If None, there are no
             more batches.
     """
-    with lmdb.open(read_lmdb, map_size=map_size).begin().cursor() \
-            as read_cursor, \
-            lmdb.open(write_lmdb, map_size=map_size).begin(write=True) \
-            as output_transaction:
+    with lmdb.open(read_lmdb,
+                   map_size=map_size).begin().cursor() as read_cursor, \
+         lmdb.open(write_lmdb,
+                   map_size=map_size).begin(write=True) as output_transaction:
         if last_key is not None:
             read_cursor.set_key(last_key)
             read_cursor.next()
