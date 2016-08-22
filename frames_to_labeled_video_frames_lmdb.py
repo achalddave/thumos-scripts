@@ -192,11 +192,6 @@ def main():
                 write=True) as lmdb_transaction:
             # Convert image arrays to image protocol buffers.
             for _ in range(batch_size):
-                num_stored += 1
-                if num_stored >= num_paths:
-                    loaded_images = True
-                    break
-
                 # Convert image arrays to image protocol buffers.
                 frame_path, image_array = queue.get()
                 image = image_array_to_proto(image_array)
@@ -211,6 +206,10 @@ def main():
                 lmdb_transaction.put(frame_key,
                                      video_frame_proto.SerializeToString())
                 progress.update(1)
+                num_stored += 1
+                if num_stored >= num_paths:
+                    loaded_images = True
+                    break
 
 
 if __name__ == "__main__":
