@@ -13,8 +13,8 @@ import logging
 import random
 from collections import defaultdict, OrderedDict
 
-from util.annotation import (filter_annotations_by_category,
-                             load_annotations_json)
+from util.video_tools.util.annotation import (filter_annotations_by_category,
+                                              load_annotations_json)
 
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s.%(msecs).03d: %(message)s',

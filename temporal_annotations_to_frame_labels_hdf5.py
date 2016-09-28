@@ -7,9 +7,9 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-from util.annotation import (Annotation, annotations_to_frame_labels,
-                             filter_annotations_by_category,
-                             load_annotations_json)
+from util.video_tools.util.annotation import (
+    Annotation, annotations_to_frame_labels, filter_annotations_by_category,
+    load_annotations_json)
 from util.parsing import load_class_mapping, parse_frame_info_file
 
 
