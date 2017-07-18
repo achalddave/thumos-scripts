@@ -33,8 +33,11 @@ def main():
 
     args = parser.parse_args()
 
-    annotations = load_thumos_annotations(args.input_annotation_dir,
-                                          args.video_frames_info)
+    annotations = [
+        annotation._asdict()
+        for annotation in load_thumos_annotations(args.input_annotation_dir,
+                                                  args.video_frames_info)
+    ]
     with open(args.output_annotation_json, 'wb') as f:
         json.dump(annotations, f)
 
